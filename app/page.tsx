@@ -1,172 +1,386 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 
-const PRODUCTS = [
-  {
-    id: "1",
-    title: "Embroidered Anarkali Kurta Set",
-    store: "Meesho",
-    storeBadge: "bg-pink-100 text-pink-700 border-pink-200",
-    image: "https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=600&auto=format&fit=crop",
-    price: 499,
-    originalPrice: 799,
-    lowestPrice: 449,
-    rating: 4.6,
-    reviews: 1280,
-    affiliateUrl: "YOUR_EARNKARO_OR_EXTRAPE_LINK",
-    matchTag: "98% Trend Match"
-  },
-  {
-    id: "2",
-    title: "Matte Liquid Lipstick Set (Pack of 3)",
-    store: "Tira Beauty",
-    storeBadge: "bg-purple-100 text-purple-700 border-purple-200",
-    image: "https://images.unsplash.com/photo-1586495777744-4413f21062fa?w=600&auto=format&fit=crop",
-    price: 299,
-    originalPrice: 599,
-    lowestPrice: 279,
-    rating: 4.8,
-    reviews: 840,
-    affiliateUrl: "YOUR_EARNKARO_OR_EXTRAPE_LINK",
-    matchTag: "Tira Bestseller"
-  }
-];
+interface Product {
+  id: string;
+  title: string;
+  store: "Meesho" | "Tira";
+  storeBadge: string;
+  image: string;
+  price: number;
+  originalPrice: number;
+  lowestPrice: number;
+  category: string;
+  description: string;
+  specs: string[];
+  rating: string;
+  inStock: boolean;
+  upiId?: string;
+  affiliateUrl?: string;
+  priceHistory: number[];
+}
 
-export default function Home() {
-  const [selectedCategory, setSelectedCategory] = useState("All");
-  const [cameraImage, setCameraImage] = useState<string | null>(null);
-  const [isMatching, setIsMatching] = useState(false);
+interface Order {
+  id: string;
+  customerName: string;
+  phone: string;
+  address: string;
+  productTitle: string;
+  amount: number;
+  paymentMethod: "COD" | "Meesho QR" | "Tira Link";
+  status: "Pending" | "Dispatched" | "Completed";
+  date: string;
+}
 
-  const handleCameraUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setIsMatching(true);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setCameraImage(reader.result as string);
-        setTimeout(() => setIsMatching(false), 1200);
-      };
-      reader.readAsDataURL(file);
+export default function Storefront() {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [activeTab, setActiveTab] = useState<"store" | "user" | "admin">("store");
+  const [expandedDetailId, setExpandedDetailId] = useState<string | null>(null);
+
+  // Client User State
+  const [user, setUser] = useState({ name: "Rahul Sharma", phone: "9876543210", address: "Kanpur, UP" });
+
+  // Sales & Order Management State
+  const [orders, setOrders] = useState<Order[]>([
+    {
+      id: "ORD-1001",
+      customerName: "Priya Singh",
+      phone: "9123456789",
+      address: "Civil Lines, Kanpur",
+      productTitle: "Embroidered Anarkali Kurta Set",
+      amount: 499,
+      paymentMethod: "Meesho QR",
+      status: "Pending",
+      date: "2026-08-21"
     }
+  ]);
+
+  // Checkout State
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [checkoutStep, setCheckoutStep] = useState<"form" | "payment" | "success">("form");
+  const [paymentType, setPaymentType] = useState<"COD" | "Online">("COD");
+  const [form, setForm] = useState({ name: "", phone: "", address: "" });
+
+  // Fetch scraped data dynamically
+  useEffect(() => {
+    fetch("/products.json")
+      .then((res) => res.json())
+      .then((data) => setProducts(data))
+      .catch((err) => console.error("Error loading products:", err));
+  }, []);
+
+  const totalRevenue = orders.reduce((sum, o) => sum + o.amount, 0);
+
+  const getMeeshoQR = (upiId: string, amount: number) => {
+    const upiUrl = `upi://pay?pa=${upiId}&pn=AtoZ_Store&am=${amount}&cu=INR`;
+    return `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(upiUrl)}`;
+  };
+
+  const handleCreateOrder = (method: "COD" | "Meesho QR" | "Tira Link") => {
+    if (!selectedProduct) return;
+    const newOrder: Order = {
+      id: `ORD-${Math.floor(1000 + Math.random() * 9000)}`,
+      customerName: form.name || user.name,
+      phone: form.phone || user.phone,
+      address: form.address || user.address,
+      productTitle: selectedProduct.title,
+      amount: selectedProduct.price,
+      paymentMethod: method,
+      status: "Pending",
+      date: new Date().toISOString().split("T")[0]
+    };
+    setOrders([newOrder, ...orders]);
+    setCheckoutStep("success");
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 text-white font-sans pb-16 max-w-md mx-auto relative border-x border-slate-800">
+    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans max-w-md mx-auto relative border-x border-slate-800 pb-20">
       
       {/* Top Header */}
-      <header className="sticky top-0 z-50 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 py-3 flex items-center justify-between">
+      <header className="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-xl border-b border-slate-800 px-4 py-3 flex justify-between items-center">
         <div>
-          <h1 className="text-xl font-black bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 bg-clip-text text-transparent">
-            A to Z Shopping
+          <h1 className="text-xl font-black bg-gradient-to-r from-pink-500 via-purple-400 to-indigo-500 bg-clip-text text-transparent">
+            A to Z Store
           </h1>
-          <p className="text-[10px] text-slate-400 font-semibold tracking-wider">AI PRICE TRACKER & LOOK MATCH</p>
+          <p className="text-[10px] text-slate-400 font-semibold tracking-wider">LIVE RESELLING HUB</p>
         </div>
 
-        <label className="flex items-center gap-1.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-xs font-bold px-3 py-1.5 rounded-full cursor-pointer shadow-lg shadow-pink-500/20 active:scale-95 transition-all">
-          <span>📷 AI Match</span>
-          <input type="file" accept="image/*" capture="environment" onChange={handleCameraUpload} className="hidden" />
-        </label>
+        <nav className="flex bg-slate-800 p-1 rounded-xl text-xs font-bold gap-1">
+          <button
+            onClick={() => setActiveTab("store")}
+            className={`px-2.5 py-1 rounded-lg ${activeTab === "store" ? "bg-purple-600 text-white" : "text-slate-400"}`}
+          >
+            🛍️ Store
+          </button>
+          <button
+            onClick={() => setActiveTab("user")}
+            className={`px-2.5 py-1 rounded-lg ${activeTab === "user" ? "bg-purple-600 text-white" : "text-slate-400"}`}
+          >
+            👤 Client
+          </button>
+          <button
+            onClick={() => setActiveTab("admin")}
+            className={`px-2.5 py-1 rounded-lg ${activeTab === "admin" ? "bg-emerald-600 text-white" : "text-slate-400"}`}
+          >
+            📊 Sales
+          </button>
+        </nav>
       </header>
 
-      {/* AI Outfit Matcher Banner */}
-      {cameraImage && (
-        <div className="m-4 p-3 bg-slate-800/80 border border-pink-500/30 rounded-2xl flex items-center gap-3">
-          <img src={cameraImage} alt="Uploaded outfit" className="w-14 h-14 object-cover rounded-xl border border-pink-500" />
-          <div className="flex-1">
-            <span className="text-xs font-bold text-pink-400">
-              {isMatching ? "⚡ AI Scanning Outfit..." : "✨ Best Matching Products Found!"}
-            </span>
-            <p className="text-[11px] text-slate-300">Showing top style matches below.</p>
-          </div>
-          <button onClick={() => setCameraImage(null)} className="text-slate-400 text-xs px-2">✕</button>
-        </div>
-      )}
-
-      {/* Trending Stories */}
-      <div className="px-4 mt-4">
-        <p className="text-xs font-bold text-slate-400 mb-2">🔥 WHAT'S IN TREND</p>
-        <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-          {[
-            { label: "Anarkali", img: "https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=150" },
-            { label: "Tira Glow", img: "https://images.unsplash.com/photo-1586495777744-4413f21062fa?w=150" },
-            { label: "Earbuds", img: "https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=150" },
-            { label: "Watches", img: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=150" }
-          ].map((story, i) => (
-            <div key={i} className="flex flex-col items-center shrink-0">
-              <div className="w-14 h-14 rounded-full p-0.5 bg-gradient-to-tr from-pink-500 to-indigo-500">
-                <img src={story.img} alt={story.label} className="w-full h-full object-cover rounded-full border-2 border-slate-900" />
-              </div>
-              <span className="text-[10px] font-medium text-slate-300 mt-1">{story.label}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Category Tabs */}
-      <div className="px-4 mt-3 flex gap-2 overflow-x-auto">
-        {["All", "Meesho Kurtas", "Tira Beauty", "Price Drops"].map((cat) => (
-          <button
-            key={cat}
-            onClick={() => setSelectedCategory(cat)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
-              selectedCategory === cat
-                ? "bg-indigo-600 text-white shadow-md shadow-indigo-500/30"
-                : "bg-slate-800 text-slate-400 border border-slate-700"
-            }`}
-          >
-            {cat}
-          </button>
-        ))}
-      </div>
-
-      {/* Product List */}
-      <main className="px-4 mt-4 space-y-5">
-        {PRODUCTS.map((product) => (
-          <div key={product.id} className="bg-slate-800/60 border border-slate-700/60 rounded-2xl overflow-hidden shadow-xl">
-            <div className="relative aspect-4/3">
-              <img src={product.image} alt={product.title} className="w-full h-full object-cover" />
-              <span className={`absolute top-3 left-3 text-[10px] font-bold px-2.5 py-1 rounded-lg border backdrop-blur-md ${product.storeBadge}`}>
-                {product.store}
-              </span>
-              <span className="absolute top-3 right-3 text-[10px] font-extrabold bg-emerald-500 text-slate-950 px-2 py-1 rounded-lg">
-                {product.matchTag}
-              </span>
-            </div>
-
-            <div className="p-4 space-y-3">
-              <h2 className="font-bold text-slate-100 text-base">{product.title}</h2>
-
-              <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-black text-emerald-400">₹{product.price}</span>
-                <span className="text-xs text-slate-500 line-through">₹{product.originalPrice}</span>
-                <span className="text-xs text-pink-400 font-bold ml-auto">
-                  Lowest: ₹{product.lowestPrice}
+      {/* STORE TAB */}
+      {activeTab === "store" && (
+        <main className="p-4 space-y-4">
+          {products.map((p) => (
+            <div key={p.id} className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl space-y-3 p-4">
+              <div className="relative aspect-4/3 rounded-xl overflow-hidden">
+                <img src={p.image} alt={p.title} className="w-full h-full object-cover" />
+                <span className={`absolute top-2 left-2 text-[10px] font-bold px-2 py-0.5 rounded-md border backdrop-blur-md ${p.storeBadge}`}>
+                  {p.store}
                 </span>
               </div>
 
-              {/* Price Graph */}
-              <div className="bg-slate-900/80 p-2.5 rounded-xl border border-slate-700/50">
-                <div className="flex justify-between items-center text-[10px] text-slate-400 mb-1">
-                  <span>Price History Trend</span>
-                  <span className="text-emerald-400 font-bold">📉 Dropped Recently</span>
+              <div>
+                <div className="flex justify-between items-start">
+                  <h2 className="font-bold text-sm text-slate-100">{p.title}</h2>
+                  <span className="text-xs font-black text-emerald-400">₹{p.price}</span>
                 </div>
-                <svg className="w-full h-8 stroke-emerald-400 fill-none" viewBox="0 0 100 30">
-                  <path d="M 0 5 L 25 12 L 50 20 L 75 28 L 100 22" strokeWidth="3" strokeLinecap="round" />
-                </svg>
+                <span className="text-[10px] text-amber-400 font-semibold">{p.rating}</span>
               </div>
 
-              <a
-                href={product.affiliateUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block w-full text-center bg-gradient-to-r from-pink-500 via-purple-600 to-indigo-600 text-white font-bold py-3 rounded-xl shadow-lg shadow-purple-500/25 active:scale-98 transition-all text-sm"
+              {/* Scraped Description */}
+              <p className="text-xs text-slate-400">{p.description}</p>
+
+              {/* Live Price Tracker Widget */}
+              <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800 space-y-1">
+                <div className="flex justify-between items-center text-[11px]">
+                  <span className="text-slate-400 font-semibold">Live Price Drop Tracker</span>
+                  <span className="text-emerald-400 font-bold">Save ₹{p.originalPrice - p.price}</span>
+                </div>
+                <div className="text-[10px] text-slate-500">
+                  Trend: {p.priceHistory.map((h) => `₹${h}`).join(" ➔ ")}
+                </div>
+              </div>
+
+              {/* Toggle Scraped Specifications */}
+              <button
+                onClick={() => setExpandedDetailId(expandedDetailId === p.id ? null : p.id)}
+                className="text-xs text-purple-400 font-bold underline block"
               >
-                Grab Lowest Price Deal →
-              </a>
+                {expandedDetailId === p.id ? "Hide Specifications ▲" : "View Scraped Specifications ▼"}
+              </button>
+
+              {expandedDetailId === p.id && (
+                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1 text-xs">
+                  <span className="font-bold text-purple-400 text-[11px]">Technical Specifications:</span>
+                  <ul className="list-disc list-inside space-y-0.5 text-[11px] text-slate-300">
+                    {p.specs.map((s, idx) => (
+                      <li key={idx}>{s}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <button
+                onClick={() => {
+                  setSelectedProduct(p);
+                  setCheckoutStep("form");
+                }}
+                className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold py-2.5 rounded-xl text-xs"
+              >
+                Buy Now Direct
+              </button>
+            </div>
+          ))}
+        </main>
+      )}
+
+      {/* CLIENT / USER MANAGEMENT TAB */}
+      {activeTab === "user" && (
+        <div className="p-4 space-y-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
+            <h3 className="font-bold text-sm text-purple-400">👤 User Profile Details</h3>
+            <div className="space-y-1.5 text-xs text-slate-300">
+              <p><strong className="text-slate-500">Name:</strong> {user.name}</p>
+              <p><strong className="text-slate-500">Phone:</strong> {user.phone}</p>
+              <p><strong className="text-slate-500">Delivery Address:</strong> {user.address}</p>
             </div>
           </div>
-        ))}
-      </main>
+
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
+            <h3 className="font-bold text-sm text-slate-100">📦 Order History & Tracking</h3>
+            {orders.length === 0 ? (
+              <p className="text-xs text-slate-500">No active orders placed yet.</p>
+            ) : (
+              orders.map((o) => (
+                <div key={o.id} className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs space-y-1">
+                  <div className="flex justify-between font-bold text-slate-200">
+                    <span>{o.productTitle}</span>
+                    <span className="text-emerald-400">₹{o.amount}</span>
+                  </div>
+                  <div className="flex justify-between text-[10px] text-slate-400">
+                    <span>{o.date} ({o.paymentMethod})</span>
+                    <span className="text-amber-400 font-semibold">{o.status}</span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* SALES MANAGEMENT TAB */}
+      {activeTab === "admin" && (
+        <div className="p-4 space-y-4">
+          <div className="grid grid-cols-2 gap-2">
+            <div className="bg-slate-900 border border-slate-800 p-3 rounded-2xl text-center">
+              <span className="text-[10px] text-slate-400 font-bold uppercase">Total Revenue</span>
+              <p className="text-xl font-black text-emerald-400 mt-1">₹{totalRevenue}</p>
+            </div>
+            <div className="bg-slate-900 border border-slate-800 p-3 rounded-2xl text-center">
+              <span className="text-[10px] text-slate-400 font-bold uppercase">Total Orders</span>
+              <p className="text-xl font-black text-purple-400 mt-1">{orders.length}</p>
+            </div>
+          </div>
+
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
+            <h3 className="font-bold text-sm text-emerald-400">📊 Sales Management Dashboard</h3>
+            <div className="space-y-3">
+              {orders.map((ord) => (
+                <div key={ord.id} className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1.5 text-xs">
+                  <div className="flex justify-between font-bold text-slate-100">
+                    <span>{ord.id} - {ord.customerName}</span>
+                    <span className="text-emerald-400">₹{ord.amount}</span>
+                  </div>
+                  <p className="text-slate-400 text-[11px]">{ord.phone} | {ord.address}</p>
+                  <div className="flex justify-between items-center pt-1 border-t border-slate-800/80 text-[10px]">
+                    <span className="bg-slate-800 text-slate-300 px-2 py-0.5 rounded-md">{ord.paymentMethod}</span>
+                    <span className="text-emerald-400 font-bold">{ord.status}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CHECKOUT & PAYMENT MODAL */}
+      {selectedProduct && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 w-full max-w-sm space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+              <h3 className="font-bold text-sm text-slate-100">Checkout - {selectedProduct.title}</h3>
+              <button onClick={() => setSelectedProduct(null)} className="text-slate-400 text-sm">✕</button>
+            </div>
+
+            {/* STEP 1: CLIENT DETAILS */}
+            {checkoutStep === "form" && (
+              <div className="space-y-3 text-xs">
+                <input
+                  type="text"
+                  placeholder="Full Name"
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-slate-100 focus:outline-none"
+                />
+                <input
+                  type="tel"
+                  placeholder="Mobile Phone"
+                  value={form.phone}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-slate-100 focus:outline-none"
+                />
+                <textarea
+                  placeholder="Full Delivery Address"
+                  value={form.address}
+                  onChange={(e) => setForm({ ...form, address: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-slate-100 focus:outline-none"
+                />
+
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <button
+                    onClick={() => setPaymentType("COD")}
+                    className={`p-2 rounded-xl font-bold border text-center ${paymentType === "COD" ? "bg-emerald-500/20 border-emerald-500 text-emerald-400" : "bg-slate-950 border-slate-800 text-slate-400"}`}
+                  >
+                    💵 Cash on Delivery
+                  </button>
+                  <button
+                    onClick={() => setPaymentType("Online")}
+                    className={`p-2 rounded-xl font-bold border text-center ${paymentType === "Online" ? "bg-purple-500/20 border-purple-500 text-purple-400" : "bg-slate-950 border-slate-800 text-slate-400"}`}
+                  >
+                    💳 Online Payment
+                  </button>
+                </div>
+
+                <button
+                  onClick={() => {
+                    if (paymentType === "COD") {
+                      handleCreateOrder("COD");
+                    } else {
+                      setCheckoutStep("payment");
+                    }
+                  }}
+                  className="w-full bg-purple-600 text-white font-bold py-2.5 rounded-xl mt-2"
+                >
+                  Proceed to Order (₹{selectedProduct.price}) →
+                </button>
+              </div>
+            )}
+
+            {/* STEP 2: DYNAMIC PAYMENT ROUTING */}
+            {checkoutStep === "payment" && (
+              <div className="text-center space-y-3 py-2">
+                {selectedProduct.store === "Meesho" ? (
+                  <>
+                    <h4 className="font-bold text-xs text-slate-200">Scan Meesho UPI QR Code</h4>
+                    <p className="text-[11px] text-slate-400">Scan with GPay / PhonePe / Paytm to complete payment.</p>
+                    <img
+                      src={getMeeshoQR(selectedProduct.upiId || "meesho@upi", selectedProduct.price)}
+                      alt="Meesho UPI QR"
+                      className="w-44 h-44 mx-auto rounded-xl border-2 border-purple-500 p-1 bg-white"
+                    />
+                    <button
+                      onClick={() => handleCreateOrder("Meesho QR")}
+                      className="w-full bg-emerald-600 text-white font-bold py-2.5 rounded-xl text-xs"
+                    >
+                      I Have Completed Payment ✅
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <h4 className="font-bold text-xs text-slate-200">Tira Affiliate Gateway Redirect</h4>
+                    <p className="text-[11px] text-slate-400">Complete checkout directly on Tira's portal.</p>
+                    <a
+                      href={selectedProduct.affiliateUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => handleCreateOrder("Tira Link")}
+                      className="block w-full bg-purple-600 text-white font-bold py-2.5 rounded-xl text-xs"
+                    >
+                      Open Tira Checkout →
+                    </a>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* STEP 3: ORDER CONFIRMED */}
+            {checkoutStep === "success" && (
+              <div className="text-center space-y-3 py-4">
+                <div className="text-3xl">🎉</div>
+                <h4 className="font-bold text-emerald-400 text-sm">Order Placed Successfully!</h4>
+                <p className="text-xs text-slate-400">Order logged in Client Account & Sales Management dashboard.</p>
+                <button
+                  onClick={() => setSelectedProduct(null)}
+                  className="bg-slate-800 text-slate-200 px-5 py-2 rounded-xl text-xs font-bold"
+                >
+                  Close Modal
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
